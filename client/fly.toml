@@ -1,0 +1,21 @@
+app = 'x402-client'
+primary_region = 'sjc'
+
+[build]
+  [build.args]
+    VITE_SERVER_URL = "https://server-bold-dream-4447.fly.dev"
+    VITE_POLKADOT_NETWORK = "paseo"
+    VITE_SIGNER_MNEMONIC = "cover flower child height math company add material father fan educate extra"
+
+[http_service]
+  internal_port = 80
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ['app']
+
+[[vm]]
+  memory = '256mb'
+  cpu_kind = 'shared'
+  cpus = 1

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>x402 Polkadot Server - API Tester</title>
+    <link rel="stylesheet" href="/src/styles/main.css">
+</head>
+<body>
+    <header class="main-header">
+        <h1>x402 Polkadot Server API Tester</h1>
+        <p>Test your Polkadot-powered payment APIs</p>
+    </header>
+
+    <div class="container">
+        <div class="main-content">
+            <section class="server-config">
+                <h2>1. Server Configuration</h2>
+                <div class="server-info">
+                    <div class="info-row-inline">
+                        <label for="api-url">API Base URL:</label>
+                        <input type="text" id="api-url" readonly />
+                    </div>
+                    <div class="detected-network">
+                        <label>Network:</label>
+                        <span id="detected-network">Paseo</span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="api-testing">
+                <h2>2. Test API Endpoints</h2>
+
+                <!-- Health Check -->
+                <div class="api-endpoint">
+                    <div class="endpoint-header">
+                        <h3>Health Check</h3>
+                        <button class="test-btn" id="test-health-btn">Test /api/health</button>
+                    </div>
+                    <div id="health-result" class="endpoint-result"></div>
+                </div>
+
+                <!-- Free Endpoint -->
+                <div class="api-endpoint">
+                    <div class="endpoint-header">
+                        <h3>Free Endpoint</h3>
+                        <button class="test-btn" id="test-free-btn">Test /api/free</button>
+                    </div>
+                    <div id="free-result" class="endpoint-result"></div>
+                </div>
+
+                <!-- Paid Endpoint -->
+                <div class="api-endpoint">
+                    <div class="endpoint-header">
+                        <h3>Paid Endpoint (x402)</h3>
+                        <button class="test-btn primary" id="test-paid-btn">Test /api/paid (Payment Required)</button>
+                    </div>
+                    <div id="paid-result" class="endpoint-result"></div>
+                    <div id="payment-requirements" class="payment-requirements hidden">
+                        <h4>Payment Requirements</h4>
+                        <div id="payment-details"></div>
+                        <button class="test-btn success" id="pay-btn">Sign & Pay</button>
+                    </div>
+                </div>
+            </section>
+
+            <section class="wallet-section">
+                <h2>3. Wallet</h2>
+                <div class="wallet-info">
+                    <div class="info-row">
+                        <label>Mnemonic:</label>
+                        <span id="wallet-mnemonic" style="font-size: 12px; word-break: break-all;">--</span>
+                    </div>
+                    <div class="info-row">
+                        <label>Address:</label>
+                        <span id="wallet-address">--</span>
+                    </div>
+                    <div class="info-row">
+                        <label>Balance:</label>
+                        <span id="dot-balance">--</span>
+                    </div>
+                    <div class="info-row hidden" id="receiver-section">
+                        <label>Receiver:</label>
+                        <span id="receiver-address">--</span>
+                        <a href="#" id="receiver-explorer-link" class="explorer-link" target="_blank" style="display: none;">View on Explorer →</a>
+                    </div>
+                    <button class="test-btn" id="refresh-btn">Refresh</button>
+                </div>
+            </section>
+        </div>
+
+        <aside class="sidebar">
+            <div class="logs">
+                <h2>Activity Log</h2>
+                <div id="log-container"></div>
+                <button class="clear-btn" id="clear-logs-btn">Clear Logs</button>
+            </div>
+        </aside>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+</body>
+</html>

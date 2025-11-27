@@ -1,0 +1,42 @@
+[package]
+name = "x402-polkadot-facilitator"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.41", features = ["full"] }
+
+# Web framework
+axum = { version = "0.7", features = ["macros"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+
+# Polkadot/Substrate
+subxt = "0.37"
+subxt-signer = "0.37"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Configuration
+dotenvy = "0.15"
+
+# Utilities
+hex = "0.4"
+bs58 = "0.5"
+blake2 = "0.10"
+futures = "0.3"
+tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
+
+[dev-dependencies]
+tokio-test = "0.4"
