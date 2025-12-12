@@ -10,6 +10,8 @@ use tracing::{debug, error, info, warn};
 use subxt::{OnlineClient, PolkadotConfig};
 use subxt_signer::sr25519::Keypair;
 
+const MAX_RETRIES: u32 = 3;
+
 pub struct PolkadotClient {
     network: String,
     network_config: NetworkConfig,
@@ -58,6 +60,19 @@ impl PolkadotClient {
         Ok(())
     }
 
+    /// Mark connection as disconnected (called when RPC errors occur)
+    async fn mark_disconnected(&self) {
+        *self.connected.write().await = false;
+        *self.api.write().await = None;
+    }
+
+    /// Force reconnection to a healthy RPC node
+    pub async fn reconnect(&self) -> FacilitatorResult<()> {
+        warn!("Forcing reconnection to RPC node...");
+        self.mark_disconnected().await;
+        self.connect().await
+    }
+
     /// Ensure we have a healthy connection, reconnect if needed
     pub async fn ensure_connected(&self) -> FacilitatorResult<()> {
         if self.is_connected().await {
@@ -70,6 +85,25 @@ impl PolkadotClient {
 
     pub async fn is_connected(&self) -> bool {
         *self.connected.read().await
+    }
+
+    /// Check if an error message indicates a connection issue that requires reconnection
+    fn is_connection_error(error_msg: &str) -> bool {
+        let connection_error_patterns = [
+            "connection closed",
+            "restart required",
+            "background task closed",
+            "websocket",
+            "transport",
+            "disconnected",
+            "connection reset",
+            "broken pipe",
+            "connection refused",
+            "timeout",
+        ];
+
+        let lower_msg = error_msg.to_lowercase();
+        connection_error_patterns.iter().any(|pattern| lower_msg.contains(pattern))
     }
 
     pub async fn verify_transaction(
@@ -95,24 +129,67 @@ impl PolkadotClient {
     pub async fn submit_transaction(&self, transaction: &str) -> FacilitatorResult<String> {
         info!("Broadcasting signed transaction");
 
-        // Ensure we have a healthy connection
-        self.ensure_connected().await?;
-
-        let api_guard = self.api.read().await;
-        let api = api_guard.as_ref().ok_or_else(|| {
-            FacilitatorError::PolkadotRpcError("API client not initialized".to_string())
-        })?;
-
         let tx_hex = transaction.trim_start_matches("0x");
         let tx_bytes = hex::decode(tx_hex).map_err(|e| {
             FacilitatorError::InvalidTransaction(format!("Invalid hex transaction: {}", e))
+        })?;
+
+        // Retry loop for connection errors
+        let mut last_error: Option<FacilitatorError> = None;
+
+        for attempt in 1..=MAX_RETRIES {
+            if attempt > 1 {
+                info!("Retry attempt {} of {}", attempt, MAX_RETRIES);
+            }
+
+            // Ensure we have a healthy connection
+            if let Err(e) = self.ensure_connected().await {
+                error!("Failed to ensure connection: {}", e);
+                last_error = Some(e);
+                continue;
+            }
+
+            match self.submit_transaction_inner(&tx_bytes).await {
+                Ok(response) => return Ok(response),
+                Err(e) => {
+                    let error_msg = e.to_string();
+                    if Self::is_connection_error(&error_msg) {
+                        warn!("Connection error detected: {}. Reconnecting...", error_msg);
+                        self.mark_disconnected().await;
+
+                        // Try to reconnect before next attempt
+                        if let Err(reconnect_err) = self.connect().await {
+                            error!("Reconnection failed: {}", reconnect_err);
+                        }
+
+                        last_error = Some(e);
+                        continue;
+                    } else {
+                        // Non-connection error, don't retry
+                        return Err(e);
+                    }
+                }
+            }
+        }
+
+        // All retries exhausted
+        Err(last_error.unwrap_or_else(|| {
+            FacilitatorError::PolkadotRpcError("Failed after max retries".to_string())
+        }))
+    }
+
+    /// Internal transaction submission (called by submit_transaction with retry logic)
+    async fn submit_transaction_inner(&self, tx_bytes: &[u8]) -> FacilitatorResult<String> {
+        let api_guard = self.api.read().await;
+        let api = api_guard.as_ref().ok_or_else(|| {
+            FacilitatorError::PolkadotRpcError("API client not initialized".to_string())
         })?;
 
         info!("Submitting transaction to blockchain");
 
         use futures::StreamExt;
         let mut submit_progress = api.backend()
-            .submit_transaction(&tx_bytes)
+            .submit_transaction(tx_bytes)
             .await
             .map_err(|e| FacilitatorError::PolkadotRpcError(
                 format!("Failed to submit transaction: {}", e)
@@ -121,7 +198,7 @@ impl PolkadotClient {
         info!("Transaction submitted, waiting for block inclusion");
 
         use blake2::{Blake2b512, Digest};
-        let tx_hash_bytes = Blake2b512::digest(&tx_bytes);
+        let tx_hash_bytes = Blake2b512::digest(tx_bytes);
         let tx_hash_hex = format!("0x{}", hex::encode(&tx_hash_bytes[..32]));
 
         let mut block_hash = String::new();
@@ -166,9 +243,8 @@ impl PolkadotClient {
                     }
                 }
                 Err(e) => {
-                    return Err(FacilitatorError::PolkadotRpcError(
-                        format!("Transaction status error: {}", e)
-                    ));
+                    let error_msg = format!("Transaction status error: {}", e);
+                    return Err(FacilitatorError::PolkadotRpcError(error_msg));
                 }
             }
         }
